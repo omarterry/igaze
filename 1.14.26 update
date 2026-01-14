@@ -98,6 +98,11 @@
             <!-- suggestions inserted by JS -->
           </div>
         </div>
+<div class="keyboard">
+  <h3 style="margin:12px 0 6px;">On-Screen Keyboard</h3>
+  <div id="kbd"></div>
+</div>
+
       </section>
 
     </section>
