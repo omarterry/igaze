@@ -104,6 +104,8 @@
   </main>
 
   <script>
+const API_BASE = "https://fjyuk645w6.execute-api.us-east-1.amazonaws.com";
+
     // ===== State =====
     const phrase = [];              // array of words (chips)
     let typed = "";                 // typed buffer
