@@ -44,9 +44,15 @@
             <li>Press <b>Speak</b> to hear the message (browser voice in this demo).</li>
           </ol>
         </div>
-        <div class="tipbox">
-          Tip: In the final build, your eye-tracking layer can “click” a tile after a dwell time or blink.
-          This UI is already structured so gaze selection can trigger the same events as a mouse click.
+        <div class="tipbox" style="margin-top:12px;">
+  <div style="font-weight:1000;margin-bottom:6px;">Eye Tracking Calibration (Silent Click Method)</div>
+  <ol style="margin:0;padding-left:18px;line-height:1.6;font-weight:800;">
+    <li>When prompted, click <b>Allow</b> to enable camera access (eye tracking starts immediately).</li>
+    <li>A dot will follow your cursor.</li>
+    <li>To calibrate: <b>look anywhere</b> on the screen and <b>click where you are looking</b>.</li>
+    <li>Repeat several clicks in different areas for better accuracy.</li>
+    <li>If accuracy is off, <b>refresh the page</b> and calibrate again.</li>
+  </ol>
         </div>
       </div>
     </section>
