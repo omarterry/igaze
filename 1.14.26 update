@@ -261,10 +261,23 @@ async function writeTextToS3(text){
       window.speechSynthesis.speak(u);
     }
 
-    function speakCurrent(){
-      const full = [...phrase, ...(typed ? [typed] : [])].join(" ").trim();
-      speak(full);
-    }
+    async function speakCurrent(){
+  const full = [...phrase, ...(typed ? [typed] : [])].join(" ").trim();
+  if (!full) return;
+
+  // 1) Write .txt to S3 via API Gateway -> Lambda
+  try {
+    const out = await writeTextToS3(full);
+    console.log("Wrote text to S3:", out);
+  } catch (e) {
+    console.error("Failed to write text to S3:", e);
+    alert("Could not send text to AWS. Check DevTools Console for the error.");
+    return;
+  }
+
+  // 2) Optional: still speak locally
+  speak(full);
+}
 
     // ===== Tile clicks =====
     document.getElementById("grid").addEventListener("click", (e) => {
