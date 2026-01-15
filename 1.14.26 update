@@ -109,7 +109,7 @@
   </main>
 
   <script>
-const API_BASE = "https://fjyuk645w6.execute-api.us-east-1.amazonaws.com";
+const API_BASE = "https://vk8wz4h7q9.execute-api.us-east-2.amazonaws.com";
 
     // ===== State =====
     const phrase = [];              // array of words (chips)
