@@ -70,6 +70,9 @@
             <span class="placeholder" id="placeholder">Select a tile or type with the keyboard…</span>
           </div>
 
+<div class="typedBox" id="typedBox" aria-live="polite"></div>
+
+
           <div class="controls">
             <button class="ctrlBtn" id="btnSpeak" type="button">🔊 Speak</button>
             <button class="ctrlBtn" id="btnUndo" type="button">↩ Undo</button>
@@ -110,6 +113,27 @@
 
   <script>
 const API_BASE = "https://vk8wz4h7q9.execute-api.us-east-2.amazonaws.com";
+
+const WRITE_PATH = "/write-text"; // change if your route is /tts
+
+async function writeTextToS3(text){
+  if(!text) return;
+
+  const url = API_BASE.replace(/\/$/, "") + WRITE_PATH;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+
+  if (!res.ok){
+    const msg = await res.text().catch(()=> "");
+    throw new Error(`API ${res.status}: ${msg}`);
+  }
+
+  return res.json().catch(()=> ({}));
+}
 
     // ===== State =====
     const phrase = [];              // array of words (chips)
