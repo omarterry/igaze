@@ -1,4 +1,5 @@
 webgazer
-• setGazelistener((data, timestamp) => { console.1og(data, timestamp)
-})
-• begin()
+  .setGazeListener((data, timestamp) => {
+    console.log(data, timestamp);
+  })
+  .begin();
