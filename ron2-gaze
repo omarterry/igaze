@@ -7,8 +7,15 @@
    - Your clickable UI elements have class="blink-target" (recommended)
 */
 
+webgazer
+• setGazeListener((data, timestamp) =>
+{
+console.1og(data, timestamp)
+})
+•begin()
 (() => {
-  "use strict";
+ 
+"use strict";
 
   // ---------------------------
   // Configuration
