@@ -1,0 +1,45 @@
+// --- Blink Detection Constants ---
+const BLINK_THRESHOLD = 1.15; // 15% increase in brightness indicates a blink
+let lastBrightness = 0;
+let isBlinking = false;
+webgazer.setGazeListener(async (data, elapsedTime) => {
+  if (data == null) return;
+  // 1. Capture the eye tracker and video elements
+  const tracker = webgazer.getTracker();
+  const video = document.getElementById('webgazerVideoFeed');
+  const canvas = webgazer.getCanvas();
+  // 2. Extract eye patch data (raw pixels of the eyes)
+  const patches = await tracker.getEyePatches(video, canvas, video.videoWidth, video.videoHeight);
+  if (patches && patches.left && patches.right) {
+    const currentBrightness = getAverageBrightness(patches.left.patch);
+    // 3. Detect sudden brightness spike (eyelid closing)
+    if (currentBrightness > lastBrightness * BLINK_THRESHOLD && !isBlinking) {
+      isBlinking = true;
+      executeBlinkClick(data.x, data.y);
+    } else if (currentBrightness < lastBrightness) {
+      isBlinking = false; // Reset when brightness drops (eye opens)
+    }
+    lastBrightness = currentBrightness;
+  }
+}).begin();
+// Helper: Calculate average brightness of an RGBA image patch
+function getAverageBrightness(patch) {
+  let sum = 0;
+  const data = patch.data;
+  for (let i = 0; i < data.length; i += 4) {
+    sum += (data[i] + data[i+1] + data[i+2]) / 3;
+  }
+  return sum / (patch.width * patch.height);
+}
+function executeBlinkClick(x, y) {
+  // Identify the element at the gaze point
+  const element = document.elementFromPoint(x, y);
+  // Check if it is the target button
+  if (element && element.classList.contains('blink-target')) {
+    console.log("Blink-click triggered on:", element.id);
+    element.click();
+    // Visual feedback for the user
+    element.style.transform = "scale(0.95)";
+    setTimeout(() => element.style.transform = "scale(1)", 100);
+  }
+}
