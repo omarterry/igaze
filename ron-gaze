@@ -1,53 +1,274 @@
-// --- Blink Detection Constants ---
-const BLINK_THRESHOLD = 1.15; // 15% increase in brightness indicates a blink
-let lastBrightness = 0;
-let isBlinking = false;
-webgazer.setGazeListener(async (data, elapsedTime) => {
-  if (data == null) return;
-  // 1. Capture the eye tracker and video elements
-  const tracker = webgazer.getTracker();
-  const video = document.getElementById('webgazerVideoFeed');
-  const canvas = webgazer.getCanvas();
-  // 2. Extract eye patch data (raw pixels of the eyes)
-  const patches = await tracker.getEyePatches(video, canvas, video.videoWidth, video.videoHeight);
-  if (patches && patches.left && patches.right) {
-    const currentBrightness = getAverageBrightness(patches.left.patch);
-    // 3. Detect sudden brightness spike (eyelid closing)
-    if (currentBrightness > lastBrightness * BLINK_THRESHOLD && !isBlinking) {
-      isBlinking = true;
-      executeBlinkClick(data.x, data.y);
-    } else if (currentBrightness < lastBrightness) {
-      isBlinking = false; // Reset when brightness drops (eye opens)
-    }
-    lastBrightness = currentBrightness;
-  }
-}).begin();
-// Helper: Calculate average brightness of an RGBA image patch
-function getAverageBrightness(patch) {
-  let sum = 0;
-  const data = patch.data;
-  for (let i = 0; i < data.length; i += 4) {
-    sum += (data[i] + data[i+1] + data[i+2]) / 3;
-  }
-  return sum / (patch.width * patch.height);
-}
-function executeBlinkClick(x, y) {
-  // Identify the element at the gaze point
-  const element = document.elementFromPoint(x, y);
-  // Check if it is the target button
-  if (element && element.classList.contains('blink-target')) {
-    console.log("Blink-click triggered on:", element.id);
-    element.click();
-    // Visual feedback for the user
-    element.style.transform = "scale(0.95)";
-    setTimeout(() => element.style.transform = "scale(1)", 100);
-  }
-}
+/* ron-gaze.js
+   Blink = Left Click + WebGazer gaze targeting
 
-const tracker = webgazer.getTracker?.();
-if (!tracker || typeof tracker.getEyePatches !== "function") return;
+   Requirements:
+   - WebGazer loaded on the page BEFORE this file
+   - WebGazer is running (webcam permission granted)
+   - Your clickable UI elements have class="blink-target" (recommended)
+*/
 
-if (lastBrightness === 0) { lastBrightness = currentBrightness; return; }
+(() => {
+  "use strict";
 
-const BLINK_DROP = 0.75; // 25% drop
-if (currentBrightness < lastBrightness * BLINK_DROP && !isBlinking) { ... }
+  // ---------------------------
+  // Configuration
+  // ---------------------------
+
+  // How often we sample webcam brightness (ms)
+  const BLINK_SAMPLE_MS = 90;
+
+  // Blink detection: treat a blink as a sudden brightness DROP below baseline * ratio
+  // Lower ratio = more sensitive (0.55–0.75 typical)
+  const BLINK_DROP_RATIO = 0.65;
+
+  // How long to wait after a blink before allowing another click (ms)
+  const BLINK_COOLDOWN_MS = 700;
+
+  // Optional: If true, show a small debug overlay
+  const DEBUG = false;
+
+  // If true, uses last valid gaze point even if current frame is null
+  const USE_LAST_GAZE_FALLBACK = true;
+
+  // The CSS selector(s) we allow to be clicked by blink.
+  // Strongly recommended: add "blink-target" to your tiles/buttons.
+  const CLICKABLE_SELECTOR = ".blink-target, button, a, input, [role='button']";
+
+  // ---------------------------
+  // State
+  // ---------------------------
+
+  let lastGaze = null;           // {x, y, t}
+  let hoveredEl = null;
+
+  let lastSampleAt = 0;
+  let lastBlinkAt = 0;
+
+  let baseline = null;           // rolling brightness baseline
+  let lastBrightness = null;
+
+  // Debug
+  let debugEl = null;
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+
+  function logDebug(...args) {
+    if (DEBUG) console.log("[ron-gaze]", ...args);
+  }
+
+  function ensureDebugOverlay() {
+    if (!DEBUG) return;
+    if (debugEl) return;
+
+    debugEl = document.createElement("div");
+    debugEl.style.position = "fixed";
+    debugEl.style.left = "12px";
+    debugEl.style.bottom = "12px";
+    debugEl.style.zIndex = "999999";
+    debugEl.style.background = "rgba(0,0,0,0.65)";
+    debugEl.style.color = "white";
+    debugEl.style.font = "12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    debugEl.style.padding = "10px 12px";
+    debugEl.style.borderRadius = "10px";
+    debugEl.style.maxWidth = "360px";
+    debugEl.style.pointerEvents = "none";
+    debugEl.textContent = "ron-gaze debug…";
+    document.body.appendChild(debugEl);
+  }
+
+  function setDebug(text) {
+    if (!DEBUG) return;
+    ensureDebugOverlay();
+    debugEl.textContent = text;
+  }
+
+  function getWebgazerVideo() {
+    // WebGazer typically injects a video element with id "webgazerVideoFeed"
+    return document.getElementById("webgazerVideoFeed") || document.querySelector("video#webgazerVideoFeed");
+  }
+
+  function avgBrightnessFromVideo(video) {
+    // Draw a tiny scaled frame to a canvas and compute average brightness
+    const w = 64, h = 48;
+
+    const canvas = avgBrightnessFromVideo._canvas || (avgBrightnessFromVideo._canvas = document.createElement("canvas"));
+    canvas.width = w;
+    canvas.height = h;
+
+    const ctx = avgBrightnessFromVideo._ctx || (avgBrightnessFromVideo._ctx = canvas.getContext("2d", { willReadFrequently: true }));
+
+    try {
+      ctx.drawImage(video, 0, 0, w, h);
+    } catch {
+      return null;
+    }
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      sum += (data[i] + data[i + 1] + data[i + 2]) / 3; // simple luminance
+    }
+    return sum / (w * h);
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function elementAtGazePoint(pt) {
+    if (!pt) return null;
+
+    const x = clamp(pt.x, 0, window.innerWidth - 1);
+    const y = clamp(pt.y, 0, window.innerHeight - 1);
+
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+
+    // Prefer clicking a parent that is explicitly marked clickable
+    return el.closest(CLICKABLE_SELECTOR) || el;
+  }
+
+  function isClickable(el) {
+    if (!el) return false;
+    return !!(el.matches?.(CLICKABLE_SELECTOR) || el.closest?.(CLICKABLE_SELECTOR));
+  }
+
+  function clickElement(el) {
+    if (!el) return false;
+
+    // If it’s not clickable, try parent
+    const target = el.closest?.(CLICKABLE_SELECTOR) || el;
+    if (!target) return false;
+
+    // Realistic "left click" sequence (mousedown/up/click)
+    const opts = { bubbles: true, cancelable: true, view: window, button: 0 };
+    target.dispatchEvent(new MouseEvent("mousedown", opts));
+    target.dispatchEvent(new MouseEvent("mouseup", opts));
+    target.dispatchEvent(new MouseEvent("click", opts));
+
+    return true;
+  }
+
+  // ---------------------------
+  // Blink detection loop
+  // ---------------------------
+
+  function blinkLoop() {
+    const t = performance.now();
+
+    // Throttle sampling
+    if (t - lastSampleAt < BLINK_SAMPLE_MS) {
+      requestAnimationFrame(blinkLoop);
+      return;
+    }
+    lastSampleAt = t;
+
+    const video = getWebgazerVideo();
+    if (!video || video.readyState < 2) {
+      setDebug("Waiting for WebGazer video…");
+      requestAnimationFrame(blinkLoop);
+      return;
+    }
+
+    const b = avgBrightnessFromVideo(video);
+    if (b == null) {
+      setDebug("No brightness sample (video not ready) …");
+      requestAnimationFrame(blinkLoop);
+      return;
+    }
+
+    // Establish baseline using EMA
+    if (baseline == null) baseline = b;
+    baseline = baseline * 0.92 + b * 0.08;
+
+    // Initialize lastBrightness
+    if (lastBrightness == null) lastBrightness = b;
+
+    // Blink detection: brightness dip vs baseline
+    const dipped = b < baseline * BLINK_DROP_RATIO;
+
+    const canFire = (t - lastBlinkAt) > BLINK_COOLDOWN_MS;
+
+    // Update hovered element using gaze
+    // (This makes blink click target stable.)
+    const gazeToUse = lastGaze;
+    if (gazeToUse) {
+      const el = elementAtGazePoint(gazeToUse);
+      hoveredEl = el;
+    }
+
+    if (DEBUG) {
+      setDebug(
+        [
+          `brightness: ${b.toFixed(1)}`,
+          `baseline: ${baseline.toFixed(1)}`,
+          `dip?: ${dipped ? "YES" : "no"}`,
+          `target: ${hoveredEl ? (hoveredEl.id ? "#" + hoveredEl.id : hoveredEl.tagName) : "none"}`,
+        ].join("\n")
+      );
+    }
+
+    if (dipped && canFire) {
+      lastBlinkAt = t;
+
+      const target = hoveredEl && isClickable(hoveredEl) ? hoveredEl : elementAtGazePoint(lastGaze);
+
+      if (target) {
+        logDebug("BLINK CLICK:", target);
+        clickElement(target);
+      } else {
+        logDebug("Blink detected, but no target element.");
+      }
+    }
+
+    lastBrightness = b;
+    requestAnimationFrame(blinkLoop);
+  }
+
+  // ---------------------------
+  // WebGazer gaze listener
+  // ---------------------------
+
+  function startWebgazerListener() {
+    if (!window.webgazer) {
+      console.error("[ron-gaze] WebGazer not found. Load webgazer.js before ron-gaze.js");
+      return;
+    }
+
+    // Listen for gaze points
+    webgazer.setGazeListener((data, elapsedTime) => {
+      if (!data) {
+        if (!USE_LAST_GAZE_FALLBACK) lastGaze = null;
+        return;
+      }
+      // data.x / data.y are page coordinates
+      lastGaze = { x: data.x, y: data.y, t: elapsedTime };
+    });
+
+    // Do NOT call .begin() here if your main app already does it.
+    // If you are NOT calling webgazer.begin() elsewhere, uncomment the next line:
+    // webgazer.begin();
+
+    logDebug("WebGazer listener attached.");
+  }
+
+  // ---------------------------
+  // Boot
+  // ---------------------------
+
+  function boot() {
+    startWebgazerListener();
+    requestAnimationFrame(blinkLoop);
+    logDebug("ron-gaze booted.");
+  }
+
+  // Run after DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
