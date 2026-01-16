@@ -43,3 +43,11 @@ function executeBlinkClick(x, y) {
     setTimeout(() => element.style.transform = "scale(1)", 100);
   }
 }
+
+const tracker = webgazer.getTracker?.();
+if (!tracker || typeof tracker.getEyePatches !== "function") return;
+
+if (lastBrightness === 0) { lastBrightness = currentBrightness; return; }
+
+const BLINK_DROP = 0.75; // 25% drop
+if (currentBrightness < lastBrightness * BLINK_DROP && !isBlinking) { ... }
