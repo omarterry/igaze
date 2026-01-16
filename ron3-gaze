@@ -1,40 +1,97 @@
-webgazer.setGazeListener(async (data, elapsedTime) => {
-    if (data == null) return;
+/* ron-gaze.js (SAFE MODE)
+   - DOES NOT call webgazer.begin()
+   - DOES NOT call webgazer.setGazeListener()
+   - Reads gaze from window.__IGAZE_GAZE__ (set by your main script.js)
+*/
 
-    // --- 1. GET EYE DATA ---
-    const tracker = webgazer.getTracker();
-    const video = document.getElementById('webgazerVideoFeed');
-    const canvas = webgazer.getCanvas();
-    const patches = await tracker.getEyePatches(video, canvas, video.videoWidth, video.videoHeight);
+(() => {
+  "use strict";
 
-    if (patches && patches.left) {
-        const currentBrightness = calculateBrightness(patches.left.patch);
+  const BLINK_SAMPLE_MS = 90;
+  const BLINK_DROP_RATIO = 0.65;     // lower = more sensitive
+  const BLINK_COOLDOWN_MS = 700;
 
-        // --- 2. BLINK DETECTION IF STATEMENT ---
-        // We check if the brightness spiked (eyelid closed)
-        if (currentBrightness > lastBrightness * 1.15 && !isBlinking) {
-            isBlinking = true;
+  const CLICKABLE_SELECTOR = ".blink-target, button, a, input, [role='button']";
 
-            // --- 3. TRIGGER CLICK (Put Stage 3 Here) ---
-            // Use the data.x and data.y provided by the listener
-            triggerGlobalGazeClick(data.x, data.y);
+  let lastSampleAt = 0;
+  let lastBlinkAt = 0;
+  let baseline = null;
 
-        } else if (currentBrightness < lastBrightness) {
-            isBlinking = false;
-        }
-        lastBrightness = currentBrightness;
-    }
-}).begin();
+  function getVideo() {
+    return document.getElementById("webgazerVideoFeed");
+  }
 
-// Define this function outside the listener to keep code clean
-function triggerGlobalGazeClick(x, y) {
-    const target = document.elementFromPoint(x, y);
-    const clickable = target?.closest("button, a");
-    if (clickable) {
-        clickable.click();
-        // Optional visual feedback
-        clickable.style.outline = "3px solid red";
-        setTimeout(() => clickable.style.outline = "", 200);
-    }
-}
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
 
+  function avgBrightnessFromVideo(video) {
+    const w = 64, h = 48;
+    const canvas = avgBrightnessFromVideo._c || (avgBrightnessFromVideo._c = document.createElement("canvas"));
+    canvas.width = w; canvas.height = h;
+    const ctx = avgBrightnessFromVideo._x || (avgBrightnessFromVideo._x = canvas.getContext("2d", { willReadFrequently: true }));
+
+    try { ctx.drawImage(video, 0, 0, w, h); } catch { return null; }
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+    }
+    return sum / (w * h);
+  }
+
+  function elementAtGazePoint(pt) {
+    if (!pt) return null;
+    const x = clamp(pt.x, 0, window.innerWidth - 1);
+    const y = clamp(pt.y, 0, window.innerHeight - 1);
+    const el = document.elementFromPoint(x, y);
+    return el ? (el.closest(CLICKABLE_SELECTOR) || el) : null;
+  }
+
+  function clickElement(el) {
+    if (!el) return false;
+    const target = el.closest?.(CLICKABLE_SELECTOR) || el;
+    if (!target) return false;
+
+    const opts = { bubbles: true, cancelable: true, view: window, button: 0 };
+    target.dispatchEvent(new MouseEvent("mousedown", opts));
+    target.dispatchEvent(new MouseEvent("mouseup", opts));
+    target.dispatchEvent(new MouseEvent("click", opts));
+    return true;
+  }
+
+  function loop() {
+    const t = performance.now();
+    if (t - lastSampleAt < BLINK_SAMPLE_MS) return requestAnimationFrame(loop);
+    lastSampleAt = t;
+
+    const video = getVideo();
+    if (!video || video.readyState < 2) return requestAnimationFrame(loop);
+
+    const b = avgBrightnessFromVideo(video);
+    if (b == null) return requestAnimationFrame(loop);
+
+    if (baseline == null) baseline = b;
+    baseline = baseline * 0.92 + b * 0.08;
+
+    const dipped = b < baseline * BLINK_DROP_RATIO;
+    const canFire = (t - lastBlinkAt) > BLINK_COOLDOWN_MS;
+
+    if (dipped && canFire) {
+      lastBlinkAt = t;
+
+      const gaze = window.__IGAZE_GAZE__;
+      const target = elementAtGazePoint(gaze);
+      if (target) clickElement(target);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => requestAnimationFrame(loop));
+  } else {
+    requestAnimationFrame(loop);
+  }
+})();
