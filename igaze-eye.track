@@ -125,11 +125,12 @@ async function startGaze(api){
     if (calStatus) calStatus.textContent = "Calibration status: WebGazer not loaded.";
     return;
   }
+await webgazer.setGazeListener((data) => {
+  if (!data) return;
+  lastGaze = { x: data.x, y: data.y };
+  window.__IGAZE_GAZE__ = lastGaze;   // ✅ ADD THIS LINE
+}).begin();
 
-  await webgazer.setGazeListener((data) => {
-    if (!data) return;
-    lastGaze = { x: data.x, y: data.y };
-  }).begin();
 
   // Hide overlays (optional)
   webgazer.showVideo(false);
