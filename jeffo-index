@@ -92,15 +92,15 @@
         </div>
 
         <div class="grid" id="grid">
-          <button class="tile yes" data-word="yes" type="button"><div class="icon">✅</div><div class="label">yes</div></button>
-          <button class="tile no" data-word="no" type="button"><div class="icon">❌</div><div class="label">no</div></button>
-          <button class="tile stop" data-word="stop" type="button"><div class="icon">🛑</div><div class="label">stop</div></button>
-          <button class="tile please" data-word="please" type="button"><div class="icon">🙏</div><div class="label">please</div></button>
+          <button class="tile yes blink-target" data-word="yes" type="button"><div class="icon">✅</div><div class="label">yes</div></button>
+          <button class="tile no blink-target" data-word="no" type="button"><div class="icon">❌</div><div class="label">no</div></button>
+          <button class="tile stop blink-target" data-word="stop" type="button"><div class="icon">🛑</div><div class="label">stop</div></button>
+          <button class="tile please blink-target" data-word="please" type="button"><div class="icon">🙏</div><div class="label">please</div></button>
 
-          <button class="tile food" data-word="food" type="button"><div class="icon">🍎</div><div class="label">food</div></button>
-          <button class="tile drink" data-word="drink" type="button"><div class="icon">💧</div><div class="label">drink</div></button>
-          <button class="tile more" data-word="more" type="button"><div class="icon">➕</div><div class="label">more</div></button>
-          <button class="tile less" data-word="less" type="button"><div class="icon">➖</div><div class="label">less</div></button>
+          <button class="tile food blink-target" data-word="food" type="button"><div class="icon">🍎</div><div class="label">food</div></button>
+          <button class="tile drink blink-target" data-word="drink" type="button"><div class="icon">💧</div><div class="label">drink</div></button>
+          <button class="tile more blink-target" data-word="more" type="button"><div class="icon">➕</div><div class="label">more</div></button>
+          <button class="tile less blink-target" data-word="less" type="button"><div class="icon">➖</div><div class="label">less</div></button>
         </div>
 
         <div class="suggestions" aria-label="Auto fill suggestions">
