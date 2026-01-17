@@ -406,7 +406,6 @@ async function callPollyTTS(buttonId, text, voiceId = "Joanna"){
     setTyped("");
     window.dispatchEvent(new Event("igaze-ready"));
   </script>
-<script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 
 <!-- blink click addon (read-only version above) -->
 <script src="ron-gaze.js"></script>
