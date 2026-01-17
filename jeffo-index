@@ -408,9 +408,6 @@ async function callPollyTTS(buttonId, text, voiceId = "Joanna"){
   </script>
 <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 
-<!-- your existing gaze + UI logic (the file you uploaded as script.js) -->
-<script src="script.js"></script>
-
 <!-- blink click addon (read-only version above) -->
 <script src="ron-gaze.js"></script>
 
